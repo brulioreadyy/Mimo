@@ -136,7 +136,7 @@ const V=h=>{document.getElementById('v').innerHTML=h};
 const codigo=new URLSearchParams(location.search).get('b')||'';
 let P=null,ocupado=[],ahora=null,cargado=Date.now(),r={paso:0},enviando=false,error='';
 let datos=(()=>{try{return JSON.parse(localStorage.getItem('mimo_cliente'))||{}}catch(e){return{}}})();
-async function api(q){const res=await fetch(API+'?'+new URLSearchParams(q));return res.json()}
+async function api(q){const res=await fetch(API+'?'+new URLSearchParams(Object.assign({},q,{_:Date.now()})),{cache:'no-store'});return res.json()}
 function pantalla(t,p,wa){V(`<div class="hero">${P?`<div class="lg">${logoSVG(...(TEMAS[P.tema]||TEMAS.algodon).lg)}</div>`:''}<h2>${esc(t)}</h2><p class="muted">${esc(p)}</p></div>${wa&&P&&P.w?`<a class="btn" style="width:100%" href="https://wa.me/${esc(P.w)}" target="_blank" rel="noopener">Escribir por WhatsApp</a>`:'<button style="width:100%" onclick="cargar()">Reintentar</button>'}`)}
 async function cargar(){
   if(!codigo){pantalla('Enlace incompleto','Pídele de nuevo el enlace de reservas a tu salón.');return}

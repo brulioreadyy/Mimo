@@ -495,7 +495,7 @@ let verificando=false;
 async function verificar(manual){
   if(verificando||!st.negocio.registrado)return;verificando=true;
   try{const N=st.negocio;
-    const q=new URLSearchParams({id:L.id,nombre:N.dueña||'',barberia:N.nombre||'',whatsapp:N.whatsapp||'',correo:N.correo||'',v:VERSION_APP});
+    const q=new URLSearchParams({id:L.id,nombre:N.dueña||'',barberia:N.nombre||'',whatsapp:N.whatsapp||'',correo:N.correo||'',v:VERSION_APP,_:Date.now()});
     const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),15000);
     const r0=await fetch(API+'?'+q.toString(),{signal:ctl.signal});clearTimeout(t);const j=await r0.json();
     if(j&&j.ok){Object.assign(L,{estado:j.estado,hasta:j.hasta,gracia:j.gracia,precio:j.precio,cobro:j.cobro,transferir:j.transferir,codigo:j.codigo||L.codigo,revisado:Date.now()});saveL();if(manual)toast('¡Listo! Tu cuenta está activa');sincronizar();pedirNuevas()}
@@ -540,7 +540,7 @@ async function sincronizar(){
 let pidiendo=false;
 async function pedirNuevas(){
   if(!st.negocio.registrado||!L.codigo||!navigator.onLine||pidiendo)return;pidiendo=true;
-  try{const r0=await fetch(API+'?'+new URLSearchParams({accion:'nuevas',id:L.id,desde:L.desde||0}));const j=await r0.json();
+  try{const r0=await fetch(API+'?'+new URLSearchParams({accion:'nuevas',id:L.id,desde:L.desde||0,_:Date.now()}),{cache:'no-store'});const j=await r0.json();
     if(j&&j.ok&&Array.isArray(j.reservas)){const nuevas=[];let max=L.desde||0;
       j.reservas.forEach(x=>{max=Math.max(max,x.creada||0);const id='r_'+x.id;if(st.citas.some(c=>c.id===id))return;
         const tn=String(x.t||'').replace(/\D/g,'').slice(-8);let k=st.clientas.find(z=>z.tel&&String(z.tel).replace(/\D/g,'').slice(-8)===tn);
