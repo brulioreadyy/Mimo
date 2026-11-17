@@ -185,15 +185,8 @@ function seed(){
     {id:uid(),servicioId:by('Extensiones pelo a pelo'),nombre:'Efecto rímel natural',img:'',min:0,precio:0},
     {id:uid(),servicioId:by('Extensiones pelo a pelo'),nombre:'Volumen ruso',img:'',min:30,precio:8000}
   ];
-  const clientas=[{id:uid(),nombre:'Camila Rojas',tel:'912345678'},{id:uid(),nombre:'Javiera Soto',tel:'987654321'},{id:uid(),nombre:'Fernanda Muñoz',tel:'955512345'}];
-  const t=ymd(hoy());
-  const citas=[
-    mk(clientas[0].id,by('Esmaltado permanente manos'),'',[0],catalogo[2].id,addDays(t,-19),toMin('11:00'),servicios,catalogo,'hecha'),
-    mk(clientas[1].id,by('Extensiones pelo a pelo'),'',[],catalogo[3].id,addDays(t,-22),toMin('16:00'),servicios,catalogo,'hecha'),
-    mk(clientas[2].id,by('Alisado permanente'),'Pelo largo (L)',[],'',t,toMin('10:00'),servicios,catalogo,'agendada'),
-    mk(clientas[0].id,by('Uñas acrílicas'),'Medio',[0],catalogo[1].id,t,toMin('14:30'),servicios,catalogo,'agendada')
-  ];
-  return {negocio:{nombre:'Studio Mimo',inicio:'10:00',fin:'20:00',rubros:['unas','pestanas','pelo'],tema:'algodon',logo:'',bienvenida:true,whatsapp:'',dias:[1,2,3,4,5,6]},servicios,catalogo,clientas,citas};
+  const clientas=[],citas=[];
+  return {negocio:{nombre:'Mi salón',inicio:'10:00',fin:'20:00',rubros:['unas','pestanas','pelo'],tema:'algodon',logo:'',bienvenida:true,whatsapp:'',dias:[1,2,3,4,5,6]},servicios,catalogo,clientas,citas};
 }
 function calc(sv,variante,extras,disenoId,catalogo){
   let min=sv.min,precio=sv.precio;
@@ -212,7 +205,7 @@ try{st=JSON.parse(localStorage.getItem(KEY))}catch(e){}
 if(!st||!st.servicios)st=seed();
 if(!TEMAS[st.negocio.tema])st.negocio.tema='algodon';
 if(!st.negocio.dias)st.negocio.dias=[1,2,3,4,5,6];if(st.negocio.whatsapp==null)st.negocio.whatsapp='';
-function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}if(typeof programarSync==='function')programarSync()}
 const svc=id=>st.servicios.find(s=>s.id===id);
 const cli=id=>st.clientas.find(c=>c.id===id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -243,7 +236,7 @@ const TABS=[
 let tab='agenda',dia=ymd(hoy());
 function go(t){tab=t;render();window.scrollTo(0,0)}
 function renderNav(){document.getElementById('nav').innerHTML=TABS.map(([k,n,ic])=>`<button class="${tab===k?'on':''}" onclick="go('${k}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ic}</svg>${n}</button>`).join('')}
-function render(){aplicarTema();document.getElementById('hName').textContent=st.negocio.nombre;document.getElementById('hLogo').innerHTML=miLogo();if(st.negocio.bienvenida){document.getElementById('nav').innerHTML='';return vBienvenida()}renderNav();({agenda:vAgenda,reservar:vReservar,catalogo:vCatalogo,clientas:vClientas,servicios:vServicios,ajustes:vAjustes})[tab]()}
+function render(){aplicarTema();document.getElementById('hName').textContent=st.negocio.nombre;document.getElementById('hLogo').innerHTML=miLogo();if(st.negocio.bienvenida){document.getElementById('nav').innerHTML='';return vBienvenida()}if(plan().estado==='bloqueado'){document.getElementById('nav').innerHTML='';return vBloqueo()}renderNav();({agenda:vAgenda,reservar:vReservar,catalogo:vCatalogo,clientas:vClientas,servicios:vServicios,ajustes:vAjustes})[tab]()}
 const V=h=>document.getElementById('view').innerHTML=h;
 
 // ---------- Agenda ----------
@@ -253,7 +246,7 @@ function vAgenda(){
   const jornada=toMin(st.negocio.fin)-toMin(st.negocio.inicio);
   const esHoy=dia===ymd(hoy()),h=new Date().getHours(),saludo=h<12?'Buenos días':h<20?'Buenas tardes':'Buenas noches';
   const t=TEMAS[st.negocio.tema]||TEMAS.algodon;
-  V(`<div class="card hello">
+  V(bannerPlan()+`<div class="card hello">
       <span class="deco" style="right:-14px;top:-14px">${flor(t.v.plum2,78,.7)}</span>
       <span class="deco" style="right:58px;top:8px">${flor(t.v.acc,26,.6)}</span>
       <span class="deco sparkle" style="left:58%;bottom:56px;font-size:12px">✦</span>
@@ -267,18 +260,17 @@ function vAgenda(){
     </div>
     ${cs.length?cs.map(cardCita).join(''):`<div class="card empty">${flor('var(--plum2)',54,.8)}<p style="margin:8px 0 0"><b style="color:var(--plum)">Día libre</b><br>Comparte tu enlace de reservas o agenda una hora.</p></div>`}
     <button style="width:100%;margin-top:6px" onclick="nuevaCita()">+ Agendar hora</button>
-    <button class="ghost" style="width:100%;margin-top:8px" onclick="pegarSolicitud()">Pegar solicitud de WhatsApp</button>
     ${dia!==ymd(hoy())?`<button class="ghost" style="width:100%;margin-top:8px" onclick="dia=ymd(hoy());render()">Volver a hoy</button>`:''}`);
 }
 function cardCita(c){
-  const s=svc(c.servicioId)||{nombre:'(servicio borrado)',rubro:'unas',extras:[]},k=cli(c.clientaId)||{nombre:'?'};
+  const s=svc(c.servicioId)||{nombre:c.etiqueta||'(servicio borrado)',rubro:'unas',extras:[]},k=cli(c.clientaId)||{nombre:'?'};
   const d=st.catalogo.find(x=>x.id===c.disenoId);
   const det=[c.variante,d&&('Diseño: '+d.nombre),...(c.extras||[]).map(i=>s.extras[i]&&s.extras[i].n)].filter(Boolean).join(' · ');
   const msg=`Hola ${k.nombre.split(' ')[0]}! Te recuerdo tu hora en ${st.negocio.nombre}: ${s.nombre}, ${fechaLarga(c.fecha)} a las ${hm(c.inicio)} (dura aprox. ${dur(c.dur)}). Responde SÍ para confirmar 💅`;
   return `<div class="card cita"><div class="bar" style="background:${RUBROS[s.rubro].c}"></div>
     <div class="hora">${hm(c.inicio)}<small>${hm(c.inicio+c.dur)}</small></div>
     <div style="flex:1"><div class="row between"><b>${esc(k.nombre)}</b>${c.estado==='hecha'?'<span class="tag ok">Atendida</span>':''}</div>
-    <div>${esc(s.nombre)}</div><div class="muted">${esc(det)}${det?' · ':''}${dur(c.dur)} · ${clp(c.precio)}</div>
+    <div>${esc(s.nombre)}${c.origen==='enlace'?' <span class="tag ok">reservó en línea</span>':''}</div><div class="muted">${esc(det)}${det?' · ':''}${dur(c.dur)} · ${clp(c.precio)}</div>
     ${c.estado==='agendada'?`<div class="row" style="margin-top:8px;flex-wrap:wrap">
       <a class="btn sm" href="${wa(k.tel,msg)}" target="_blank" rel="noopener">Recordar por WhatsApp</a>
       <button class="ghost sm" onclick="estado('${c.id}','hecha')">Atendida</button>
@@ -331,8 +323,7 @@ function vReservar(){
   const head=`<div class="card" style="background:var(--soft);border:0"><b>Así lo ve tu clienta</b><div class="muted">En la app real esto es tu enlace de reservas para Instagram, WhatsApp o Facebook. Las reservas caen directo en tu Agenda.</div></div>`;
   const back=r.paso?`<button class="ghost sm" onclick="r.paso--;render()">‹ Atrás</button>`:'';
   if(r.paso===0){
-    V(compartirHTML()+`<h3 class="sectiontitle" style="font-size:16px">Vista previa: así lo ve tu clienta</h3>`+bar+`<div class="welcome" style="padding:10px 0 4px"><div class="big" style="width:76px;height:76px;border-radius:22px">${miLogo()}</div><h2>${esc(st.negocio.nombre)}</h2><p class="muted">¿Qué te quieres hacer hoy?</p></div>`+
-    st.negocio.rubros.map(rb=>`<div class="card"><div class="row" style="margin-bottom:6px"><span class="dot" style="background:${RUBROS[rb].c}"></span><b>${RUBROS[rb].n}</b></div>${st.servicios.filter(s=>s.activo&&s.rubro===rb).map(s=>`<div class="row between" style="padding:8px 0;border-top:1px solid var(--line);cursor:pointer" onclick="r={paso:1,servicioId:'${s.id}',variante:'${s.variantes[0]?esc(s.variantes[0].n):''}',extras:[],disenoId:'',fecha:ymd(hoy()),inicio:null};render()"><span>${esc(s.nombre)}<br><span class="muted">${dur(s.min)}${s.variantes.length?' o más, según largo':''}</span></span><b>desde ${clp(s.precio)}</b></div>`).join('')}</div>`).join(''));
+    V(compartirHTML()+(L.codigo?`<p class="muted" style="text-align:center">Toca <b>Probar</b> para ver tu página como la ve tu clienta.</p>`:''));
     return;
   }
   const s=svc(r.servicioId);const c=calc(s,r.variante,r.extras,r.disenoId,st.catalogo);const dis=st.catalogo.filter(d=>d.servicioId===s.id);
@@ -377,16 +368,7 @@ function confirmarReserva(){
 }
 
 function normTel(t){let n=String(t||'').replace(/\D/g,'');if(n.length===9)n='56'+n;if(n.length===8)n='569'+n;return n.length>=11?n:''}
-function enlaceReserva(){
-  const N=st.negocio,act=st.servicios.filter(x=>x.activo&&N.rubros.includes(x.rubro));
-  const sv=act.map(x=>[x.rubro,x.nombre,+x.precio||0,+x.min||30,x.variantes.map(v=>[v.n,+v.min||0,+v.precio||0]),x.extras.map(e=>[e.n,+e.min||0,+e.precio||0])]);
-  const g=st.catalogo.filter(d=>act.some(x=>x.id===d.servicioId)).map(d=>[act.findIndex(x=>x.id===d.servicioId),d.nombre,+d.min||0,+d.precio||0]);
-  const cfg={n:N.nombre,w:normTel(N.whatsapp),i:N.inicio,f:N.fin,d:N.dias,t:N.tema,s:sv,g,u:MIMO_URL};
-  const k=JSON.stringify(cfg);
-  if(ENL.k===k)return ENL.u;
-  if(ENL.pend!==k&&window.CompressionStream){ENL.pend=k;packZ(cfg).then(zz=>{ENL={k,u:RESERVA_URL+'#z-'+zz};if(tab==='reservar'&&!document.getElementById('sheet').classList.contains('open'))render()}).catch(()=>{})}
-  return RESERVA_URL+'#c-'+hex(k);
-}
+function enlaceReserva(){return L.codigo?MIMO_URL+'r?b='+encodeURIComponent(L.codigo):''}
 let ENL={k:'',u:''};
 function guiaRedes(){
   document.getElementById('sheetIn').innerHTML=`<div class="row between"><h3>Cómo ponerlo en cada red</h3><button class="ghost sm" onclick="closeSheet()">Cerrar</button></div>
@@ -409,21 +391,23 @@ const SIC={copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8
 const sic=k=>`<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${SIC[k]}</svg>`;
 function compartirHTML(){
   if(!normTel(st.negocio.whatsapp))return `<div class="card"><b>Tu enlace de reservas</b><p class="muted">Escribe tu WhatsApp para crear el enlace que compartes en Instagram, WhatsApp, Facebook y Telegram.</p><input inputmode="tel" placeholder="9 1234 5678" onchange="st.negocio.whatsapp=this.value;save();render()"></div>`;
-  const L=enlaceReserva(),n=st.negocio.nombre,u=encodeURIComponent(L),msg='✨ Reserva tu hora en '+n+'\n👇 Aprieta aquí para reservar:\n';
+  if(!st.negocio.registrado)return regHTML('Activa tu enlace de reservas','Tus clientas reservan solas y la hora queda en tu agenda al tiro. Empiezas con 30 días gratis.');
+  if(!L.codigo)return `<div class="card"><b>Tu enlace de reservas</b><p class="muted">Conéctate a internet para crear tu enlace.</p><button style="width:100%" onclick="verificar(true)">Crear mi enlace</button></div>`;
+  const LK=enlaceReserva(),n=st.negocio.nombre,u=encodeURIComponent(LK),msg='✨ Reserva tu hora en '+n+'\n👇 Aprieta aquí para reservar:\n';
   setTimeout(pintarQR,0);
-  return `<div class="card"><b>Tu enlace de reservas</b><p class="muted" style="margin:4px 0 10px">Tus clientas eligen servicio, diseño, día y hora, y te llega la solicitud a WhatsApp. Tocas el enlace del mensaje (o lo pegas aquí) y la aceptas.</p>
-  <textarea class="linkta" readonly onfocus="this.select()" style="width:100%;height:58px;font-size:12px;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--bg);color:var(--muted);resize:none">${esc(L)}</textarea>
+  return `<div class="card"><b>Tu enlace de reservas</b><p class="muted" style="margin:4px 0 10px">Tus clientas eligen servicio, diseño, día y hora libre, y la reserva queda en tu agenda al tiro. Te avisamos con una notificación y por correo.</p>
+  <textarea class="linkta" readonly onfocus="this.select()" style="width:100%;height:58px;font-size:12px;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--bg);color:var(--muted);resize:none">${esc(LK)}</textarea>
   <div class="share">
    <button class="sbtn" onclick="copiarEnlace()">${sic('copy')}Copiar</button>
-   <a class="sbtn" style="color:#1fa855" href="https://wa.me/?text=${encodeURIComponent(msg+L)}" target="_blank" rel="noopener">${sic('wa')}WhatsApp</a>
+   <a class="sbtn" style="color:#1fa855" href="https://wa.me/?text=${encodeURIComponent(msg+LK)}" target="_blank" rel="noopener">${sic('wa')}WhatsApp</a>
    <a class="sbtn" style="color:#2aa3df" href="https://t.me/share/url?url=${u}&text=${encodeURIComponent('Reserva tu hora en '+n)}" target="_blank" rel="noopener">${sic('tg')}Telegram</a>
    <a class="sbtn" style="color:#1877f2" href="https://www.facebook.com/sharer/sharer.php?u=${u}" target="_blank" rel="noopener">${sic('fb')}Facebook</a>
    <button class="sbtn" style="color:#d6297b" onclick="copiarEnlace(igInfo)">${sic('ig')}Instagram</button>
-   <a class="sbtn" href="${esc(L)}" target="_blank" rel="noopener">${sic('link')}Probar</a>
+   <a class="sbtn" href="${esc(LK)}" target="_blank" rel="noopener">${sic('link')}Probar</a>
   </div>
   <button class="ghost" style="width:100%;margin-bottom:12px" onclick="guiaRedes()">Cómo ponerlo en cada red (botón "Reserva aquí")</button>
   <div style="text-align:center"><div id="qr" style="display:inline-block;background:#fff;padding:12px;border-radius:12px;min-height:40px"></div><p class="muted" style="margin-top:6px">Código QR para el local o tus historias: sácale pantallazo.</p></div>
-  <p class="muted">Si cambias servicios, precios, horario o días, vuelve a compartir el enlace.</p></div>`;
+  <p class="muted">Si cambias servicios, precios u horario, tu enlace se actualiza solo.</p></div>`;
 }
 let qrCargando=false;
 function pintarQR(){
@@ -435,7 +419,7 @@ function pintarQR(){
   document.head.appendChild(sc);
 }
 function copiarEnlace(despues){
-  const t=enlaceReserva(),ta=document.querySelector('.linkta');
+  const t=enlaceReserva(),ta=document.querySelector('.linkta');if(!t)return;
   const manual=()=>{if(ta){ta.focus();ta.select()}toast('Enlace seleccionado: toca Copiar');despues&&despues(false)};
   try{navigator.clipboard.writeText(t).then(()=>{toast('Enlace copiado');despues&&despues(true)},manual)}catch(e){manual()}
 }
@@ -482,6 +466,128 @@ function solOtra(){const q=solPend;if(!q)return;
 function pegarSolicitud(){document.getElementById('sheetIn').innerHTML=`<h3>Pegar solicitud</h3><p class="muted">Copia el mensaje completo que te llegó por WhatsApp y pégalo aquí.</p><textarea id="pegado" style="width:100%;height:120px;font:inherit;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--card);color:var(--ink)"></textarea><div class="row" style="margin-top:8px"><button class="ghost" style="flex:1" onclick="closeSheet()">Cancelar</button><button style="flex:1" onclick="const q=leerSolicitud(document.getElementById('pegado').value);q?mostrarSolicitud(q):toast('No encontré una solicitud en ese texto')">Leer</button></div>`;openSheet()}
 function revisarHash(){const h=location.hash||'';if(h.indexOf('#r-')!==0)return;const q=leerSolicitud(h);try{history.replaceState(null,'',location.pathname+location.search)}catch(e){try{location.hash=''}catch(e2){}}if(q){if(st.negocio.bienvenida){st.negocio.bienvenida=false;save();render()}mostrarSolicitud(q)}else toast('La solicitud no se pudo leer')}
 window.addEventListener('hashchange',revisarHash);
+
+// ---------- cuenta, plan y reservas en línea (mismo sistema que Silla) ----------
+const API='https://script.google.com/macros/s/AKfycbzVAXe-wM8xVHy9DOyh-EbtR9cfySFpLNvnYqR4-ZqMQR1GYJzkrj-Sovw02bKuq2AH/exec';
+const VERSION_APP='mimo-1.0',LKEY='mimo_lic';
+let L=(()=>{try{return JSON.parse(localStorage.getItem(LKEY))||{}}catch(e){return{}}})();
+function saveL(){try{localStorage.setItem(LKEY,JSON.stringify(L))}catch(e){}}
+if(!L.id){L.id='mimo-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);L.primera=ymd(hoy());saveL()}
+const diasEntre=(a,b)=>Math.round((new Date(b+'T12:00')-new Date(a+'T12:00'))/864e5);
+function plan(){
+  const h0=ymd(hoy()),hasta=L.hasta||addDays(L.primera||h0,30),gracia=L.gracia!=null?+L.gracia:5,d=diasEntre(h0,hasta);
+  const estado=L.estado==='pagado'&&d>=0?'pagado':(d>=0?'prueba':(d>=-gracia?'vencido':'bloqueado'));
+  return{estado,hasta,dias:d,quedaGracia:gracia+d,precio:L.precio||4990,cobro:L.cobro||'',transferir:L.transferir||''};
+}
+function regHTML(t,p){const N=st.negocio;return `<div class="card"><h3 style="font-size:17px">${t}</h3><p class="muted">${p}</p>
+  <label>Tu nombre</label><input id="rgN" value="${esc(N.dueña||'')}" placeholder="Ej: Camila">
+  <label>Nombre de tu negocio</label><input id="rgB" value="${esc(N.nombre==='Mi salón'?'':N.nombre)}" placeholder="Ej: Cami Nails">
+  <label>Tu WhatsApp</label><input id="rgW" inputmode="tel" value="${esc(N.whatsapp||'')}" placeholder="9 1234 5678">
+  <label>Tu correo (te avisamos cada reserva)</label><input id="rgC" type="email" inputmode="email" value="${esc(N.correo||'')}" placeholder="tucorreo@gmail.com">
+  <button style="width:100%;margin-top:12px" onclick="registrar()">Activar 30 días gratis</button></div>`}
+function registrar(){const g=id=>(document.getElementById(id)||{}).value||'';const N=st.negocio;
+  if(g('rgN').trim())N.dueña=g('rgN').trim();if(g('rgB').trim())N.nombre=g('rgB').trim();if(g('rgW').trim())N.whatsapp=g('rgW').trim();N.correo=g('rgC').trim();
+  if(!N.nombre||N.nombre==='Mi salón')return toast('Escribe el nombre de tu negocio');if(!normTel(N.whatsapp))return toast('Revisa tu WhatsApp');
+  N.registrado=true;save();render();verificar(true)}
+function empezar(){const N=st.negocio;if(!N.nombre||N.nombre==='Mi salón')return toast('Escribe el nombre de tu negocio');if(!normTel(N.whatsapp))return toast('Escribe tu WhatsApp');
+  N.bienvenida=false;N.registrado=true;save();go('agenda');verificar()}
+let verificando=false;
+async function verificar(manual){
+  if(verificando||!st.negocio.registrado)return;verificando=true;
+  try{const N=st.negocio;
+    const q=new URLSearchParams({id:L.id,nombre:N.dueña||'',barberia:N.nombre||'',whatsapp:N.whatsapp||'',correo:N.correo||'',v:VERSION_APP});
+    const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),15000);
+    const r0=await fetch(API+'?'+q.toString(),{signal:ctl.signal});clearTimeout(t);const j=await r0.json();
+    if(j&&j.ok){Object.assign(L,{estado:j.estado,hasta:j.hasta,gracia:j.gracia,precio:j.precio,cobro:j.cobro,transferir:j.transferir,codigo:j.codigo||L.codigo,revisado:Date.now()});saveL();if(manual)toast('¡Listo! Tu cuenta está activa');sincronizar();pedirNuevas()}
+  }catch(e){if(manual)toast('Sin conexión: inténtalo con internet')}
+  verificando=false;if(!document.getElementById('sheet').classList.contains('open'))render();
+}
+function catalogoReserva(conDisenos){
+  const N=st.negocio,act=st.servicios.filter(x=>x.activo&&N.rubros.includes(x.rubro));
+  const flat=[],x=[];
+  act.forEach(sv=>{
+    const vs=sv.variantes.length?sv.variantes:[{n:'',min:0,precio:0}],ex=sv.extras.slice(0,4);
+    const ds=[{nombre:'',min:0,precio:0}].concat(conDisenos?st.catalogo.filter(d=>d.servicioId===sv.id):[]);
+    x.push({r:sv.rubro,n:sv.nombre,m:+sv.min||30,p:+sv.precio||0,v:sv.variantes.map(v=>[v.n,+v.min||0,+v.precio||0]),e:ex.map(e=>[e.n,+e.min||0,+e.precio||0]),g:ds.slice(1).map(d=>[d.nombre,+d.min||0,+d.precio||0])});
+    vs.forEach(v=>{for(let mask=0;mask<(1<<ex.length);mask++){const ei=ex.map((e,i)=>i).filter(i=>mask&(1<<i));
+      ds.forEach(d=>{const m=(+sv.min||30)+(+v.min||0)+ei.reduce((a,i)=>a+(+ex[i].min||0),0)+(+d.min||0);
+        const p=(+sv.precio||0)+(+v.precio||0)+ei.reduce((a,i)=>a+(+ex[i].precio||0),0)+(+d.precio||0);
+        flat.push([etiqueta(sv.nombre,v.n,ei.map(i=>ex[i].n),d.nombre),p,m])})}})
+  });
+  if(conDisenos&&JSON.stringify({flat,x}).length>17000)return catalogoReserva(false);
+  return{flat,x};
+}
+function etiqueta(sn,v,es,d){return sn+(v?' · '+v:'')+es.map(e=>' + '+e).join('')+(d?' · Diseño: '+d:'')}
+function desdeEtiqueta(lab){
+  for(const sv of st.servicios){if(!(lab===sv.nombre||lab.startsWith(sv.nombre+' · ')||lab.startsWith(sv.nombre+' + ')))continue;
+    const vs=sv.variantes.length?sv.variantes:[{n:''}],ex=sv.extras.slice(0,4),ds=[{id:'',nombre:''}].concat(st.catalogo.filter(d=>d.servicioId===sv.id));
+    for(const v of vs)for(let mask=0;mask<(1<<ex.length);mask++){const ei=ex.map((e,i)=>i).filter(i=>mask&(1<<i));
+      for(const d of ds)if(etiqueta(sv.nombre,v.n,ei.map(i=>ex[i].n),d.nombre)===lab)return{servicioId:sv.id,variante:v.n,extras:ei,disenoId:d.id}}}
+  return{servicioId:'',variante:'',extras:[],disenoId:''};
+}
+let syncT=null,sincronizando=false;
+function programarSync(){clearTimeout(syncT);syncT=setTimeout(sincronizar,3000)}
+async function sincronizar(){
+  if(!st.negocio.registrado||!L.codigo||!navigator.onLine||sincronizando)return;sincronizando=true;
+  try{const N=st.negocio,h0=ymd(hoy()),c=catalogoReserva(true);
+    const perfil={n:N.nombre,b:N.dueña||'',w:normTel(N.whatsapp),i:N.inicio,f:N.fin,v:15,d:N.dias,tema:N.tema,ant:+N.ant||30,app:'mimo',s:c.flat,x:c.x};
+    const ocupado=st.citas.filter(x=>x.fecha>=h0&&x.estado!=='cancelada').map(x=>[x.fecha,hm(x.inicio),+x.dur||30,x.id,((cli(x.clientaId)||{}).nombre||'').split(' ')[0]]);
+    const r0=await fetch(API,{method:'POST',body:JSON.stringify({accion:'perfil',id:L.id,correo:N.correo||'',perfil,ocupado})});
+    const j=await r0.json();if(j&&j.codigo&&j.codigo!==L.codigo){L.codigo=j.codigo;saveL();if(tab==='reservar')render()}
+  }catch(e){}
+  sincronizando=false;
+}
+let pidiendo=false;
+async function pedirNuevas(){
+  if(!st.negocio.registrado||!L.codigo||!navigator.onLine||pidiendo)return;pidiendo=true;
+  try{const r0=await fetch(API+'?'+new URLSearchParams({accion:'nuevas',id:L.id,desde:L.desde||0}));const j=await r0.json();
+    if(j&&j.ok&&Array.isArray(j.reservas)){const nuevas=[];let max=L.desde||0;
+      j.reservas.forEach(x=>{max=Math.max(max,x.creada||0);const id='r_'+x.id;if(st.citas.some(c=>c.id===id))return;
+        const tn=String(x.t||'').replace(/\D/g,'').slice(-8);let k=st.clientas.find(z=>z.tel&&String(z.tel).replace(/\D/g,'').slice(-8)===tn);
+        if(!k){k={id:uid(),nombre:x.c,tel:x.t};st.clientas.push(k)}
+        const m=desdeEtiqueta(x.s);
+        const c={id,origen:'enlace',clientaId:k.id,servicioId:m.servicioId,variante:m.variante,extras:m.extras,disenoId:m.disenoId,etiqueta:x.s,fecha:x.f,inicio:toMin(x.h),dur:+x.m||30,precio:+x.p||0,estado:'agendada',creada:x.creada||Date.now()};
+        st.citas.push(c);nuevas.push(c)});
+      L.desde=max;saveL();
+      if(nuevas.length){save();if(!document.getElementById('sheet').classList.contains('open'))render();avisarNuevas(nuevas)}}
+  }catch(e){}
+  pidiendo=false;
+}
+function avisarNuevas(ls){
+  const c=ls[0],k=cli(c.clientaId)||{nombre:''},cuando=c.fecha===ymd(hoy())?'hoy':fechaLarga(c.fecha);
+  const t=ls.length===1?'Nueva hora: '+k.nombre:'Tienes '+ls.length+' horas nuevas';
+  const b=ls.length===1?(c.etiqueta+' · '+cuando+' a las '+hm(c.inicio)):ls.map(x=>hm(x.inicio)+' '+((cli(x.clientaId)||{}).nombre||'')).join(', ');
+  toast(t);try{navigator.vibrate&&navigator.vibrate([120,60,120])}catch(e){}
+  try{if('Notification' in window&&Notification.permission==='granted'){
+    if(navigator.serviceWorker&&navigator.serviceWorker.ready)navigator.serviceWorker.ready.then(r0=>r0.showNotification(t,{body:b,icon:'icon-192.png',badge:'icon-192.png',tag:'mimo-'+c.id}));
+    else new Notification(t,{body:b,icon:'icon-192.png'})}}catch(e){}
+}
+function notifHTML(){
+  if(!('Notification' in window))return'<p class="muted">Este celular no permite notificaciones; te avisaremos por correo.</p>';
+  if(Notification.permission==='granted')return'<p class="muted">✓ Notificaciones activadas en este celular.</p>';
+  if(Notification.permission==='denied')return'<p class="muted">Las notificaciones están bloqueadas: actívalas en los ajustes del celular para Mimo.</p>';
+  return'<button class="ghost" style="width:100%" onclick="pedirNotif()">Activar notificaciones de reservas</button>';
+}
+function pedirNotif(){try{Notification.requestPermission().then(()=>render())}catch(e){}}
+function waCobro(){const p=plan(),n=normTel(p.cobro);if(!n)return'';return wa(n,'Hola, quiero pagar mi plan de Mimo ('+clp(p.precio)+'/mes).\nNegocio: '+(st.negocio.nombre||'')+'\nNombre: '+(st.negocio.dueña||'')+'\nID: '+L.id)}
+function bannerPlan(){
+  if(!st.negocio.registrado)return'';const p=plan();
+  if(p.estado==='prueba'&&p.dias<=7)return`<div class="card" style="background:var(--soft);cursor:pointer" onclick="go('ajustes')">✦ ${p.dias===0?'Tu prueba gratis termina <b>hoy</b>':'Te quedan <b>'+p.dias+' día'+(p.dias===1?'':'s')+'</b> de prueba gratis'}. Toca para ver cómo seguir.</div>`;
+  if(p.estado==='vencido')return`<div class="card" style="background:var(--warnbg);cursor:pointer" onclick="go('ajustes')">Tu plan venció. Tienes <b>${p.quedaGracia} día${p.quedaGracia===1?'':'s'}</b> para pagar antes de que Mimo se pause.</div>`;
+  return'';
+}
+function planHTML(){
+  const p=plan(),w=waCobro(),txt={prueba:'Prueba gratis',pagado:'Plan activo',vencido:'Vencido',bloqueado:'Pausado'}[p.estado];
+  return`<div class="row between"><b style="font-size:20px;color:var(--plum)">${clp(p.precio)}<span class="muted" style="font-weight:500"> / mes</span></b><span class="tag ${p.estado==='pagado'?'ok':p.estado==='prueba'?'':'warn'}">${txt}</span></div>
+  <p class="muted">${p.estado==='pagado'?'Pagado hasta el '+fechaLarga(p.hasta)+'.':p.estado==='prueba'?'Gratis hasta el '+fechaLarga(p.hasta)+'.':'Venció el '+fechaLarga(p.hasta)+'.'}</p>
+  ${p.transferir?`<div class="card" style="box-shadow:none;font-size:13px">${esc(p.transferir)}</div>`:''}
+  <div class="row" style="flex-wrap:wrap">${w?`<a class="btn sm" href="${w}" target="_blank" rel="noopener">Pagar por WhatsApp</a>`:''}<button class="ghost sm" onclick="verificar(true)">Ya pagué: revisar</button></div>
+  <p class="muted" style="margin-top:8px">Tu ID: ${esc(L.id)}</p>`;
+}
+function vBloqueo(){const p=plan();V(`<div class="welcome"><div class="big">${miLogo()}</div><h2 style="color:var(--plum)">Mimo está en pausa</h2><p class="muted">Tu plan venció el ${fechaLarga(p.hasta)}. Tus horas y clientas están guardadas: paga tu plan para seguir usándola.</p></div><div class="card">${planHTML()}</div>`)}
+setInterval(()=>{if(!document.hidden)pedirNuevas()},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){pedirNuevas();if(!L.revisado||Date.now()-L.revisado>6*3600e3)verificar()}});
+window.addEventListener('online',()=>verificar());
 
 // ---------- Catálogo ----------
 function vCatalogo(){
@@ -559,7 +665,11 @@ function vAjustes(){
    <div class="row"><div class="brand"><div class="lg" style="width:56px;height:56px;border-radius:16px">${miLogo()}</div></div>
    <label class="btn ghost sm" style="margin:0;color:var(--plum)">Subir logo<input type="file" accept="image/*" style="display:none" onchange="subirLogo(event)"></label>
    ${st.negocio.logo?'<button class="ghost sm" onclick="st.negocio.logo=\'\';save();render()">Quitar</button>':''}</div></div>
-  <div class="card"><b>Datos de prueba</b><p class="muted">Vuelve a los datos de ejemplo (borra lo que agregaste en este prototipo).</p><button class="ghost" onclick="resetear()">Reiniciar prototipo</button></div>`);
+  <div class="card"><h3 style="font-size:16px">Avisos de reservas</h3>
+   <label>Correo (te avisamos cada reserva y cada mañana tu agenda)</label><input type="email" inputmode="email" placeholder="tucorreo@gmail.com" value="${esc(st.negocio.correo||'')}" onchange="st.negocio.correo=this.value.trim();save();verificar()">
+   <div style="margin-top:10px">${notifHTML()}</div></div>
+  <div class="card"><h3 style="font-size:16px">Tu plan</h3>${st.negocio.registrado?planHTML():'<p class="muted">Activa tu cuenta en la pestaña Reservar para empezar tus 30 días gratis.</p>'}</div>
+  <div class="card"><b>Borrar agenda</b><p class="muted">Borra todas las horas y clientas de este celular (tus servicios y diseños se mantienen).</p><button class="ghost" onclick="resetear()">Borrar horas y clientas</button></div>`);
 }
 function selTemas(){return `<div class="themes">${Object.entries(TEMAS).map(([k,t])=>`<button class="th ${st.negocio.tema===k?'on':''}" onclick="st.negocio.tema='${k}';save();render()"><div class="pv" style="background:radial-gradient(90% 80% at 0 0,${t.v.b1},transparent 70%),radial-gradient(90% 80% at 100% 100%,${t.v.b2},transparent 70%),${t.v.bg}"><div style="display:flex;gap:6px;align-items:center"><span style="width:22px;height:22px;border-radius:7px;overflow:hidden;display:block">${logoSVG(...t.lg)}</span><i style="flex:1;background:${t.v.ink};opacity:.8;height:8px"></i></div><i style="background:${t.v.card};border:1px solid ${t.v.line};height:22px"></i><i style="background:linear-gradient(90deg,${t.v.plum},${t.v.acc});width:60%;height:14px;border-radius:9px"></i></div><div class="nm">${t.n}</div></button>`).join('')}</div>`}
 function subirLogo(e){const fl=e.target.files[0];if(!fl)return;leerFoto(fl,u=>{st.negocio.logo=u;save();render();toast('Logo actualizado')})}
@@ -567,14 +677,17 @@ function vBienvenida(){
   V(`<div class="welcome" style="position:relative"><span class="deco" style="left:4px;top:0">${flor('var(--acc)',46,.6)}</span><span class="deco" style="right:6px;top:30px">${flor('var(--plum2)',60,.7)}</span><div class="big">${miLogo()}</div><div class="script" style="font-size:22px;color:var(--muted)">Bienvenida a</div><h2 style="font-family:'Dancing Script',cursive;font-size:48px;color:var(--plum);line-height:1">Mimo</h2><p class="muted">Tu agenda de belleza en 1 minuto. Las clientas reservan solas y tú solo atiendes.</p></div>
   <div class="card"><label style="margin-top:0">¿Cómo se llama tu negocio?</label><input value="${esc(st.negocio.nombre)}" onchange="st.negocio.nombre=this.value;save();document.getElementById('hName').textContent=this.value">
   <label>Tu WhatsApp (aquí te llegan las reservas)</label><input inputmode="tel" placeholder="9 1234 5678" value="${esc(st.negocio.whatsapp)}" onchange="st.negocio.whatsapp=this.value;save()">
-  <label>¿Qué haces?</label><div class="chips">${Object.keys(RUBROS).map(rb=>`<button class="chip ${st.negocio.rubros.includes(rb)?'on':''}" onclick="togRubro('${rb}')">${RUBROS[rb].n}</button>`).join('')}</div></div>
+  <label>Tu nombre</label><input value="${esc(st.negocio.dueña||'')}" placeholder="Ej: Camila" onchange="st.negocio.dueña=this.value;save()">
+  <label>Tu correo (te avisamos cada reserva)</label><input type="email" inputmode="email" value="${esc(st.negocio.correo||'')}" placeholder="tucorreo@gmail.com" onchange="st.negocio.correo=this.value.trim();save()">
+  <label>¿Qué haces?</label><div class="chips">${Object.keys(RUBROS).map(rb=>`<button class="chip ${st.negocio.rubros.includes(rb)?'on':''}" onclick="togRubro('${rb}')">${RUBROS[rb].n}</button>`).join('')}</div>
+  <p class="muted" style="margin-top:10px">Empiezas con <b style="color:var(--plum)">30 días gratis</b>.</p></div>
   <div class="card"><b>Elige tu estilo</b><p class="muted" style="margin-top:4px">Lo puedes cambiar cuando quieras en Ajustes.</p>${selTemas()}</div>
-  <button style="width:100%;margin-bottom:20px" onclick="st.negocio.bienvenida=false;save();go('agenda')">Empezar</button>`);
+  <button style="width:100%;margin-bottom:20px" onclick="empezar()">Empezar</button>`);
 }
 function togDia(d){const a=st.negocio.dias;st.negocio.dias=a.includes(d)?a.filter(x=>x!==d):[...a,d];save();render()}
 function togRubro(rb){const a=st.negocio.rubros;if(a.includes(rb)){if(a.length===1)return toast('Deja al menos un rubro');st.negocio.rubros=a.filter(x=>x!==rb)}else a.push(rb);save();render()}
 let confirmReset=false;
-function resetear(){if(!confirmReset){confirmReset=true;toast('Toca otra vez para confirmar');setTimeout(()=>confirmReset=false,3000);return}st=seed();save();dia=ymd(hoy());go('agenda');toast('Prototipo reiniciado')}
+function resetear(){if(!confirmReset){confirmReset=true;toast('Toca otra vez para confirmar');setTimeout(()=>confirmReset=false,3000);return}st.citas=[];st.clientas=[];save();dia=ymd(hoy());go('agenda');toast('Agenda borrada')}
 
 // botón Atrás del celular (APK)
 window.androidBack=function(){const sh=document.getElementById('sheet');if(sh.classList.contains('open')){closeSheet();return 'ok'}
@@ -582,6 +695,7 @@ window.androidBack=function(){const sh=document.getElementById('sheet');if(sh.cl
  if(tab!=='agenda'&&!st.negocio.bienvenida){go('agenda');return 'ok'}return 'exit'};
 render();
 revisarHash();
+verificar();
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){try{navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}}
 </script>
 </body>
