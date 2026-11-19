@@ -254,7 +254,7 @@ function vAgenda(){
       <h2>${esHoy?'Tu día de hoy':fechaLarga(dia).split(',')[0]}</h2>
       <div class="row between" style="margin-top:6px">
         <button class="ghost sm" style="background:color-mix(in srgb,var(--card) 70%,transparent)" onclick="dia=addDays(dia,-1);render()">‹</button>
-        <b style="font-size:14px">${fechaLarga(dia)}</b>
+        <label style="margin:0;position:relative;color:var(--ink);font-weight:700;font-size:14px;cursor:pointer">📅 ${fechaLarga(dia)}<input type="date" value="${dia}" onchange="if(this.value){dia=this.value;render()}" style="position:absolute;inset:0;opacity:0;width:100%;cursor:pointer"></label>
         <button class="ghost sm" style="background:color-mix(in srgb,var(--card) 70%,transparent)" onclick="dia=addDays(dia,1);render()">›</button></div>
       <div class="stats"><div><b>${cs.length}</b><span>clientas</span></div><div><b>${dur(horas)}</b><span>de ${dur(jornada)}</span></div><div><b>${clp(total)}</b><span>del día</span></div></div>
     </div>
@@ -312,7 +312,7 @@ function guardarCita(){
   st.citas.push(mk(id,f.servicioId,f.variante,f.extras,f.disenoId,f.fecha,f.inicio,st.servicios,st.catalogo,'agendada'));
   save();dia=f.fecha;closeSheet();go('agenda');toast('Cita agendada');
 }
-function disCard(d,on,click){return `<button class="dis ${on?'on':''}" onclick="${click}"><div class="img">${d.img?`<img src="${d.img}" alt="">`:'Sin foto'}</div><div class="t"><b>${esc(d.nombre)}</b><br><span class="muted">${+d.precio?'+'+clp(d.precio):'Sin costo extra'}${+d.min?' · +'+d.min+'′':''}</span></div></button>`}
+function disCard(d,on,click){return `<button class="dis ${on?'on':''}" onclick="${click}"><div class="img">${imgDe(d)?`<img src="${imgDe(d)}" alt="" loading="lazy">`:'Sin foto'}</div><div class="t"><b>${esc(d.nombre)}</b><br><span class="muted">${+d.precio?'+'+clp(d.precio):'Sin costo extra'}${+d.min?' · +'+d.min+'′':''}</span></div></button>`}
 function openSheet(){document.getElementById('sheet').classList.add('open')}
 function closeSheet(){document.getElementById('sheet').classList.remove('open')}
 
@@ -590,27 +590,49 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){pedirNuev
 window.addEventListener('online',()=>verificar());
 
 // ---------- Catálogo ----------
+// fotos en IndexedDB (casi ilimitadas)
+const IMG={};let idbP=null;
+function idb(){if(!idbP)idbP=new Promise((ok,no)=>{try{const q=indexedDB.open('mimo_fotos',1);q.onupgradeneeded=()=>q.result.createObjectStore('f');q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)}catch(e){no(e)}});return idbP}
+async function idbPut(k,v){try{const db=await idb();await new Promise((ok,no)=>{const t=db.transaction('f','readwrite');v==null?t.objectStore('f').delete(k):t.objectStore('f').put(v,k);t.oncomplete=ok;t.onerror=()=>no(t.error)})}catch(e){}}
+async function cargarFotos(){try{const db=await idb();await new Promise(ok=>{const t=db.transaction('f','readonly'),c=t.objectStore('f').openCursor();c.onsuccess=()=>{const r0=c.result;if(r0){IMG[r0.key]=r0.value;r0.continue()}else ok()};c.onerror=ok})}catch(e){}
+  let mov=false;for(const d of st.catalogo){if(d.img&&d.img.startsWith('data:')){IMG[d.id]=d.img;await idbPut(d.id,d.img);d.img='idb';mov=true}}if(mov)save()}
+const imgDe=d=>IMG[d.id]||(d.img&&d.img.startsWith('data:')?d.img:'');
+function guardarFoto(d,u){IMG[d.id]=u;d.img='idb';idbPut(d.id,u)}
 function vCatalogo(){
-  const svs=st.servicios.filter(s=>st.negocio.rubros.includes(s.rubro));
-  V(`<h2 class="sectiontitle">Catálogo de diseños</h2><p class="muted" style="margin-top:-4px">Sube fotos de tus trabajos. Tu clienta las elige al reservar y el precio y el tiempo extra se suman solos.</p>
-  ${svs.filter(s=>st.catalogo.some(d=>d.servicioId===s.id)).map(s=>`<h3 style="font-size:15px;margin:14px 2px 8px">${esc(s.nombre)}</h3><div class="grid">${st.catalogo.filter(d=>d.servicioId===s.id).map(d=>`<div class="dis" style="cursor:default"><div class="img">${d.img?`<img src="${d.img}" alt="">`:`<label style="color:var(--plum);cursor:pointer;margin:0">+ Subir foto<input type="file" accept="image/*" style="display:none" onchange="foto(event,'${d.id}')"></label>`}</div><div class="t"><b>${esc(d.nombre)}</b><br><span class="muted">${+d.precio?'+'+clp(d.precio):'Sin extra'}${+d.min?' · +'+d.min+'′':''}</span><br><button class="ghost sm" style="margin-top:6px" onclick="borrarDis('${d.id}')">Quitar</button></div></div>`).join('')}</div>`).join('')}
-  <div class="card" style="margin-top:16px"><h3 style="font-size:16px">Agregar diseño</h3>
-   <label>Servicio</label><select id="ds">${svs.map(s=>`<option value="${s.id}">${esc(s.nombre)}</option>`).join('')}</select>
-   <label>Nombre del diseño</label><input id="dn" placeholder="Ej: Marmolado rosa">
-   <div class="row"><div style="flex:1"><label>Precio extra</label><input id="dp" type="number" inputmode="numeric" value="0"></div><div style="flex:1"><label>Minutos extra</label><input id="dm" type="number" inputmode="numeric" value="0"></div></div>
-   <label>Foto</label><input id="df" type="file" accept="image/*">
-   <button style="width:100%;margin-top:12px" onclick="addDis()">Agregar al catálogo</button></div>`);
+  const svs=st.servicios.filter(s=>st.negocio.rubros.includes(s.rubro)&&s.activo);
+  const tot=st.catalogo.length;
+  V(`<h2 class="sectiontitle">Catálogo de diseños</h2><p class="muted" style="margin-top:-4px">Sube todas las fotos que quieras de tus trabajos (se guardan en tu celular). Tu clienta elige el diseño al reservar y el precio y el tiempo extra se suman solos.</p>
+  <button style="width:100%;margin-bottom:12px" onclick="editDis()">+ Agregar fotos al catálogo</button>
+  ${tot?'':'<div class="card empty">'+flor('var(--plum2)',50,.8)+'<p>Aún no tienes diseños. Sube varias fotos de una vez.</p></div>'}
+  ${svs.filter(x=>st.catalogo.some(d=>d.servicioId===x.id)).map(x=>{const ds=st.catalogo.filter(d=>d.servicioId===x.id);return `<div class="row between" style="margin:16px 2px 8px"><h3 style="font-size:16px">${esc(x.nombre)} <span class="muted">(${ds.length})</span></h3><button class="ghost sm" onclick="editDis('','${x.id}')">+ Fotos</button></div>
+   <div class="grid">${ds.map(d=>`<button class="dis" onclick="editDis('${d.id}')"><div class="img">${imgDe(d)?`<img src="${imgDe(d)}" alt="" loading="lazy">`:'Sin foto'}</div><div class="t"><b>${esc(d.nombre)}</b><br><span class="muted">${+d.precio?'+'+clp(d.precio):'Sin extra'}${+d.min?' · +'+d.min+'′':''}</span></div></button>`).join('')}</div>`}).join('')}`);
 }
-function leerFoto(file,cb){const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,480/Math.max(im.width,im.height));const cv=document.createElement('canvas');cv.width=im.width*k;cv.height=im.height*k;cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);cb(cv.toDataURL('image/jpeg',.75))};im.src=rd.result};rd.readAsDataURL(file)}
-function foto(e,id){const fl=e.target.files[0];if(!fl)return;leerFoto(fl,u=>{st.catalogo.find(d=>d.id===id).img=u;save();render()})}
-function addDis(){
-  const n=document.getElementById('dn').value.trim();if(!n)return toast('Ponle nombre al diseño');
-  const d={id:uid(),servicioId:document.getElementById('ds').value,nombre:n,precio:+document.getElementById('dp').value||0,min:+document.getElementById('dm').value||0,img:''};
-  const fl=document.getElementById('df').files[0];
-  const fin=()=>{st.catalogo.push(d);save();render();toast('Diseño agregado')};
-  fl?leerFoto(fl,u=>{d.img=u;fin()}):fin();
+function editDis(id,svId){
+  const d=id?st.catalogo.find(x=>x.id===id):null,svs=st.servicios.filter(s=>st.negocio.rubros.includes(s.rubro)&&s.activo);
+  const cur=d?d.servicioId:(svId||(svs[0]||{}).id);
+  document.getElementById('sheetIn').innerHTML=`<div class="row between"><h3>${d?'Editar diseño':'Agregar fotos'}</h3><button class="ghost sm" onclick="closeSheet()">Cerrar</button></div>
+  ${d&&imgDe(d)?`<img src="${imgDe(d)}" style="width:100%;max-height:260px;object-fit:cover;border-radius:18px;margin-top:10px">`:''}
+  <label>Servicio</label><select id="ds">${svs.map(x=>`<option value="${x.id}" ${x.id===cur?'selected':''}>${esc(x.nombre)}</option>`).join('')}</select>
+  <label>Nombre del diseño${d?'':' (si subes varias, se numeran solas)'}</label><input id="dn" value="${esc(d?d.nombre:'')}" placeholder="Ej: Marmolado rosa">
+  <div class="row"><div style="flex:1"><label>Precio extra</label><input id="dp" type="number" inputmode="numeric" value="${d?+d.precio||0:0}"></div><div style="flex:1"><label>Minutos extra</label><input id="dm" type="number" inputmode="numeric" value="${d?+d.min||0:0}"></div></div>
+  <label>${d?'Cambiar foto':'Fotos (puedes elegir muchas a la vez)'}</label><input id="df" type="file" accept="image/*" ${d?'':'multiple'}>
+  <button style="width:100%;margin-top:14px" onclick="guardarDis('${d?d.id:''}')">${d?'Guardar':'Agregar al catálogo'}</button>
+  ${d?`<button class="ghost" style="width:100%;margin-top:8px" onclick="borrarDis('${d.id}')">Quitar del catálogo</button>`:''}`;
+  openSheet();
 }
-function borrarDis(id){st.catalogo=st.catalogo.filter(d=>d.id!==id);save();render()}
+function guardarDis(id){
+  const g=x=>document.getElementById(x);const n=g('dn').value.trim(),sv=g('ds').value,p=+g('dp').value||0,m=+g('dm').value||0,fs=[...g('df').files];
+  if(id){const d=st.catalogo.find(x=>x.id===id);d.nombre=n||d.nombre;d.servicioId=sv;d.precio=p;d.min=m;
+    if(fs[0])return leerFoto(fs[0],u=>{guardarFoto(d,u);save();closeSheet();render();toast('Diseño guardado')});save();closeSheet();render();return toast('Diseño guardado')}
+  if(!fs.length&&!n)return toast('Elige fotos o ponle nombre');
+  if(!fs.length){st.catalogo.push({id:uid(),servicioId:sv,nombre:n,precio:p,min:m,img:''});save();closeSheet();render();return toast('Diseño agregado')}
+  const base=n||'Diseño',ya=st.catalogo.filter(x=>x.servicioId===sv).length;let hechos=0;
+  toast('Guardando '+fs.length+' foto'+(fs.length>1?'s':'')+'…');
+  fs.forEach((f,i)=>leerFoto(f,u=>{const d={id:uid(),servicioId:sv,nombre:fs.length>1?base+' '+(ya+i+1):base,precio:p,min:m,img:''};guardarFoto(d,u);st.catalogo.push(d);
+    if(++hechos===fs.length){save();closeSheet();render();toast(fs.length+' diseño'+(fs.length>1?'s':'')+' agregado'+(fs.length>1?'s':''))}}));
+}
+function leerFoto(file,cb){const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,560/Math.max(im.width,im.height));const cv=document.createElement('canvas');cv.width=im.width*k;cv.height=im.height*k;cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);cb(cv.toDataURL('image/jpeg',.75))};im.src=rd.result};rd.readAsDataURL(file)}
+function borrarDis(id){st.catalogo=st.catalogo.filter(d=>d.id!==id);delete IMG[id];idbPut(id,null);save();closeSheet();render();toast('Diseño quitado')}
 
 // ---------- Clientas + retoques ----------
 function vClientas(){
@@ -636,20 +658,39 @@ function vClientas(){
 
 // ---------- Servicios ----------
 function vServicios(){
-  V(`<h2 class="sectiontitle">Servicios y tiempos</h2><p class="muted" style="margin-top:-4px">Ajusta duración, precio y cada cuántos días le toca retoque a la clienta (0 = sin retoque). La agenda usa estos tiempos para no topar horas.</p>
-  ${st.negocio.rubros.map(rb=>`<div class="card"><div class="row" style="margin-bottom:4px"><span class="dot" style="background:${RUBROS[rb].c}"></span><b>${RUBROS[rb].n}</b></div>
-   <div class="svc muted" style="border:0;font-size:11px"><span>Servicio</span><span>Minutos</span><span>Precio</span></div>
-   ${st.servicios.filter(s=>s.rubro===rb).map(s=>`<div class="svc"><div><span style="${s.activo?'':'text-decoration:line-through;color:var(--muted)'}">${esc(s.nombre)}</span><br>
-     <span class="muted" style="font-size:12px">Retoque cada <input type="number" style="width:52px;display:inline;padding:2px 4px" value="${s.retoque}" onchange="upd('${s.id}','retoque',this.value)"> días ${s.variantes.length?'· '+s.variantes.length+' largos':''} · <a href="#" style="color:var(--plum)" onclick="event.preventDefault();upd('${s.id}','activo',${!s.activo})">${s.activo?'ocultar':'mostrar'}</a></span></div>
-     <input type="number" value="${s.min}" onchange="upd('${s.id}','min',this.value)"><input type="number" value="${s.precio}" onchange="upd('${s.id}','precio',this.value)"></div>`).join('')}</div>`).join('')}
-  <div class="card"><h3 style="font-size:16px">Nuevo servicio</h3>
-   <label>Rubro</label><select id="nr">${st.negocio.rubros.map(rb=>`<option value="${rb}">${RUBROS[rb].n}</option>`).join('')}</select>
-   <label>Nombre</label><input id="nn" placeholder="Ej: Polygel">
-   <div class="row"><div style="flex:1"><label>Minutos</label><input id="nm" type="number" value="60"></div><div style="flex:1"><label>Precio</label><input id="np" type="number" value="15000"></div><div style="flex:1"><label>Retoque (días)</label><input id="nt" type="number" value="21"></div></div>
-   <button style="width:100%;margin-top:12px" onclick="addSvc()">Agregar servicio</button></div>`);
+  V(`<h2 class="sectiontitle">Servicios y tiempos</h2><p class="muted" style="margin-top:-4px">Toca un servicio para cambiar su tiempo, precio, largos o extras. Agrega todos los que quieras.</p>
+  ${st.negocio.rubros.map(rb=>`<div class="card"><div class="row between" style="margin-bottom:6px"><div class="row"><span class="dot" style="background:${RUBROS[rb].c}"></span><b>${RUBROS[rb].n}</b></div><button class="ghost sm" onclick="editSvc('','${rb}')">+ Agregar</button></div>
+   ${st.servicios.filter(x=>x.rubro===rb).map(x=>`<div class="row between" style="padding:11px 0;border-top:1px dashed var(--line);cursor:pointer" onclick="editSvc('${x.id}')"><div><span style="${x.activo?'':'text-decoration:line-through;color:var(--muted)'}">${esc(x.nombre)}</span><br><span class="muted" style="font-size:12px">${dur(+x.min||0)}${x.variantes.length?' · '+x.variantes.length+' largos':''}${x.extras.length?' · '+x.extras.length+(x.extras.length===1?' extra':' extras'):''}${+x.retoque?' · retoque '+x.retoque+' d':''}</span></div><b style="white-space:nowrap">${clp(+x.precio||0)} ›</b></div>`).join('')||'<p class="muted">Sin servicios todavía.</p>'}</div>`).join('')}`);
 }
-function upd(id,k,v){const s=svc(id);s[k]=k==='activo'?v:(+v||0);save();if(k==='activo')render();else toast('Guardado')}
-function addSvc(){const n=document.getElementById('nn').value.trim();if(!n)return toast('Falta el nombre');st.servicios.push({id:uid(),rubro:document.getElementById('nr').value,nombre:n,min:+document.getElementById('nm').value||30,precio:+document.getElementById('np').value||0,retoque:+document.getElementById('nt').value||0,variantes:[],extras:[],activo:true});save();render();toast('Servicio agregado')}
+let ed=null;
+function editSvc(id,rb){
+  const x=id?svc(id):null;
+  ed=x?JSON.parse(JSON.stringify(x)):{id:'',rubro:rb||st.negocio.rubros[0],nombre:'',min:60,precio:10000,retoque:0,variantes:[],extras:[],activo:true};
+  pintarEd();openSheet();
+}
+function pintarEd(){
+  const lista=(k,t,ej)=>`<label>${t}</label>${ed[k].map((v,i)=>`<div class="row" style="margin-bottom:6px"><input style="flex:2" value="${esc(v.n)}" placeholder="${ej}" oninput="ed.${k}[${i}].n=this.value"><input style="flex:1" type="number" value="${+v.min||0}" title="min" oninput="ed.${k}[${i}].min=+this.value||0"><input style="flex:1.2" type="number" value="${+v.precio||0}" title="$" oninput="ed.${k}[${i}].precio=+this.value||0"><button class="ghost sm" onclick="ed.${k}.splice(${i},1);pintarEd()">✕</button></div>`).join('')}<button class="ghost sm" onclick="ed.${k}.push({n:'',min:0,precio:0});pintarEd()">+ Agregar</button>`;
+  document.getElementById('sheetIn').innerHTML=`<div class="row between"><h3>${ed.id?'Editar servicio':'Nuevo servicio'}</h3><button class="ghost sm" onclick="closeSheet()">Cerrar</button></div>
+  <label>Rubro</label><select onchange="ed.rubro=this.value">${Object.keys(RUBROS).map(r0=>`<option value="${r0}" ${ed.rubro===r0?'selected':''}>${RUBROS[r0].n}</option>`).join('')}</select>
+  <label>Nombre</label><input value="${esc(ed.nombre)}" placeholder="Ej: Polygel, Balayage, Brow lift…" oninput="ed.nombre=this.value">
+  <div class="row"><div style="flex:1"><label>Minutos</label><input type="number" value="${ed.min}" oninput="ed.min=+this.value||0"></div><div style="flex:1"><label>Precio</label><input type="number" value="${ed.precio}" oninput="ed.precio=+this.value||0"></div><div style="flex:1"><label>Retoque (días)</label><input type="number" value="${ed.retoque}" oninput="ed.retoque=+this.value||0"></div></div>
+  <p class="muted" style="margin:10px 0 0">En largos y extras escribe: nombre · minutos extra · precio extra.</p>
+  ${lista('variantes','Largos o tamaños (opcional)','Ej: Pelo largo')}
+  ${lista('extras','Extras (opcional, máx. 4 se muestran en tu enlace)','Ej: Retiro de esmalte')}
+  <label style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" style="width:auto" ${ed.activo?'checked':''} onchange="ed.activo=this.checked"> Mostrar este servicio a mis clientas</label>
+  <button style="width:100%;margin-top:14px" onclick="guardarSvc()">Guardar</button>
+  ${ed.id?`<button class="ghost" style="width:100%;margin-top:8px" onclick="borrarSvc()">Eliminar servicio</button>`:''}`;
+}
+function guardarSvc(){
+  if(!ed.nombre.trim())return toast('Ponle nombre al servicio');
+  ed.nombre=ed.nombre.trim();ed.variantes=ed.variantes.filter(v=>v.n.trim());ed.extras=ed.extras.filter(v=>v.n.trim());
+  if(!st.negocio.rubros.includes(ed.rubro))st.negocio.rubros.push(ed.rubro);
+  if(ed.id){const i=st.servicios.findIndex(x=>x.id===ed.id);st.servicios[i]=ed}else{ed.id=uid();st.servicios.push(ed)}
+  save();closeSheet();render();toast('Servicio guardado')
+}
+let confirmSvc=false;
+function borrarSvc(){if(!confirmSvc){confirmSvc=true;toast('Toca otra vez para eliminar');setTimeout(()=>confirmSvc=false,3000);return}
+  st.servicios=st.servicios.filter(x=>x.id!==ed.id);st.catalogo=st.catalogo.filter(d=>d.servicioId!==ed.id);save();closeSheet();render();toast('Servicio eliminado')}
 
 // ---------- Ajustes ----------
 function vAjustes(){
@@ -658,7 +699,7 @@ function vAjustes(){
   <div class="row"><div style="flex:1"><label>Abre</label><input type="time" value="${st.negocio.inicio}" onchange="st.negocio.inicio=this.value;save()"></div><div style="flex:1"><label>Cierra</label><input type="time" value="${st.negocio.fin}" onchange="st.negocio.fin=this.value;save()"></div></div>
   <label>WhatsApp del negocio (aquí te llegan las reservas)</label><input inputmode="tel" placeholder="9 1234 5678" value="${esc(st.negocio.whatsapp)}" onchange="st.negocio.whatsapp=this.value;save()">
   <label>Días que atiendes</label><div class="chips">${[1,2,3,4,5,6,0].map(d=>`<button class="chip ${st.negocio.dias.includes(d)?'on':''}" onclick="togDia(${d})">${DIAS[d]}</button>`).join('')}</div>
-  <label>¿Qué haces? (elige uno o varios)</label><div class="chips">${Object.keys(RUBROS).map(rb=>`<button class="chip ${st.negocio.rubros.includes(rb)?'on':''}" onclick="togRubro('${rb}')">${RUBROS[rb].n}</button>`).join('')}</div>
+  <label>¿Qué haces? (marca todo lo que haces, pueden ser los 3)</label><div class="chips">${Object.keys(RUBROS).map(rb=>`<button class="chip ${st.negocio.rubros.includes(rb)?'on':''}" onclick="togRubro('${rb}')">${st.negocio.rubros.includes(rb)?'✓ ':'+ '}${RUBROS[rb].n}</button>`).join('')}</div>
   <p class="muted">Una manicurista elige solo Uñas; un salón completo marca los tres. Cada rubro trae sus servicios y tiempos típicos ya cargados.</p></div>
   <div class="card"><h3 style="font-size:16px">Diseño de tu app</h3><p class="muted">Elige el estilo que va con tu marca. Tus clientas lo ven igual en tu enlace de reservas.</p>${selTemas()}
    <label style="margin-top:14px">Tu logo (opcional)</label>
@@ -679,7 +720,7 @@ function vBienvenida(){
   <label>Tu WhatsApp (aquí te llegan las reservas)</label><input inputmode="tel" placeholder="9 1234 5678" value="${esc(st.negocio.whatsapp)}" onchange="st.negocio.whatsapp=this.value;save()">
   <label>Tu nombre</label><input value="${esc(st.negocio.dueña||'')}" placeholder="Ej: Camila" onchange="st.negocio.dueña=this.value;save()">
   <label>Tu correo (te avisamos cada reserva)</label><input type="email" inputmode="email" value="${esc(st.negocio.correo||'')}" placeholder="tucorreo@gmail.com" onchange="st.negocio.correo=this.value.trim();save()">
-  <label>¿Qué haces?</label><div class="chips">${Object.keys(RUBROS).map(rb=>`<button class="chip ${st.negocio.rubros.includes(rb)?'on':''}" onclick="togRubro('${rb}')">${RUBROS[rb].n}</button>`).join('')}</div>
+  <label>¿Qué haces? (marca todo lo que haces, pueden ser los 3)</label><div class="chips">${Object.keys(RUBROS).map(rb=>`<button class="chip ${st.negocio.rubros.includes(rb)?'on':''}" onclick="togRubro('${rb}')">${st.negocio.rubros.includes(rb)?'✓ ':'+ '}${RUBROS[rb].n}</button>`).join('')}</div>
   <p class="muted" style="margin-top:10px">Empiezas con <b style="color:var(--plum)">30 días gratis</b>.</p></div>
   <div class="card"><b>Elige tu estilo</b><p class="muted" style="margin-top:4px">Lo puedes cambiar cuando quieras en Ajustes.</p>${selTemas()}</div>
   <button style="width:100%;margin-bottom:20px" onclick="empezar()">Empezar</button>`);
@@ -696,6 +737,7 @@ window.androidBack=function(){const sh=document.getElementById('sheet');if(sh.cl
 render();
 revisarHash();
 verificar();
+cargarFotos().then(()=>{if(tab==='catalogo'||tab==='agenda')render()});
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){try{navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}}
 </script>
 </body>

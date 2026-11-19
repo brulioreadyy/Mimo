@@ -103,6 +103,15 @@ nav svg{width:22px;height:22px}
 .svc{display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-top:1px dashed var(--line);cursor:pointer;grid-template-columns:none}
 .foot{text-align:center;margin-top:18px;font-size:12px;color:var(--muted)}
 body{padding-bottom:30px}
+.cal{background:color-mix(in srgb,var(--card) 88%,transparent);border:1px solid var(--line);border-radius:22px;padding:12px;box-shadow:var(--sh)}
+.cg{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+.cw{font-size:11px;color:var(--muted);font-weight:700;padding:4px 0}
+.cd{position:relative;aspect-ratio:1;padding:0;border-radius:14px;background:transparent;color:var(--ink);box-shadow:none;font-weight:700;font-size:14px;border:1.5px solid transparent}
+.cd:disabled{color:var(--muted);opacity:.35}
+.cd i{position:absolute;bottom:5px;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--plum2)}
+.cd.hoy{border-color:var(--line)}
+.cd.on{background:linear-gradient(135deg,var(--plum),color-mix(in srgb,var(--plum) 65%,var(--acc)));color:var(--onp)}
+.cd.on i{background:#fff}
 </style>
 </head>
 <body>
@@ -157,7 +166,19 @@ function sel(){const s=X()[r.i];if(!s)return null;const v=(s.v||[])[r.v],g=(s.g|
   const it=(P.s||[])[idx];return it?{idx,lab:it[0],p:+it[1]||0,m:+it[2]||30,s}:null}
 function hoyF(){return ahora&&ahora.f?ahora.f:ymd(new Date())}
 function minAhora(){if(ahora&&ahora.m!=null)return ahora.m+Math.floor((Date.now()-cargado)/60000);const d=new Date();return d.getHours()*60+d.getMinutes()}
-function diasDisp(){const out=[],ds=P.d&&P.d.length?P.d:[1,2,3,4,5,6],b=new Date(hoyF()+'T12:00');for(let i=0;out.length<14&&i<40;i++){const d=new Date(b);d.setDate(b.getDate()+i);if(ds.includes(d.getDay()))out.push(ymd(d))}return out}
+const MAXD=90;
+function abierto(f){const ds=P.d&&P.d.length?P.d:[1,2,3,4,5,6];const d=new Date(f+'T12:00');const lim=new Date(hoyF()+'T12:00');lim.setDate(lim.getDate()+MAXD);return f>=hoyF()&&d<=lim&&ds.includes(d.getDay())}
+function diasDisp(){const out=[],b=new Date(hoyF()+'T12:00');for(let i=0;i<=MAXD;i++){const d=new Date(b);d.setDate(b.getDate()+i);const f=ymd(d);if(abierto(f))out.push(f)}return out}
+function calendario(m){
+  const mes=r.mes||hoyF().slice(0,7),[y,mo]=mes.split('-').map(Number),pri=new Date(y,mo-1,1),nd=new Date(y,mo,0).getDate(),off=(pri.getDay()+6)%7;
+  const mn=pri.toLocaleDateString('es-CL',{month:'long'}),tit=mn.charAt(0).toUpperCase()+mn.slice(1)+' '+y;
+  const ant=mes>hoyF().slice(0,7),lim=new Date(hoyF()+'T12:00');lim.setDate(lim.getDate()+MAXD);const sig=new Date(y,mo,1)<=lim;
+  let h=`<div class="cal"><div class="row between" style="margin-bottom:8px"><button class="ghost sm" ${ant?'':'disabled'} onclick="movMes(-1)">‹</button><b>${tit}</b><button class="ghost sm" ${sig?'':'disabled'} onclick="movMes(1)">›</button></div><div class="cg">`+['Lu','Ma','Mi','Ju','Vi','Sá','Do'].map(x=>`<span class="cw">${x}</span>`).join('')+'<span></span>'.repeat(off);
+  for(let d=1;d<=nd;d++){const f=mes+'-'+String(d).padStart(2,'0');const n=abierto(f)?libres(f,m).length:0;
+    h+=`<button class="cd ${f===r.f?'on':''} ${f===hoyF()?'hoy':''}" ${n?`onclick="r.f='${f}';r.h=null;render()"`:'disabled'}>${d}${n?'<i></i>':''}</button>`}
+  return h+'</div><p class="muted" style="margin:8px 0 0;font-size:12px">Los días con punto tienen horas libres.</p></div>';
+}
+function movMes(k){const[y,mo]=(r.mes||hoyF().slice(0,7)).split('-').map(Number);const d=new Date(y,mo-1+k,1);r.mes=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');render()}
 function libres(f,m){const a=toMin(P.i||'10:00'),b=toMin(P.f||'20:00'),st=+P.v||15,ant=+P.ant||30,out=[];const lim=f===hoyF()?minAhora()+ant:-1;
   for(let t=a;t+m<=b;t+=st){if(t<lim)continue;if(ocupado.some(o=>o[0]===f&&toMin(o[1])<t+m&&t<toMin(o[1])+(+o[2]||30)))continue;out.push(t)}return out}
 function render(){
@@ -179,10 +200,11 @@ function render(){
     ${(s.g||[]).length?`<label>Diseño (opcional)</label><div class="chips">${s.g.map((g,k)=>`<button class="chip ${r.g===k?'on':''}" onclick="r.g=r.g===${k}?-1:${k};render()">${esc(g[0])}${g[2]?' (+'+clp(g[2])+')':''}</button>`).join('')}</div><p class="muted">¿Quieres ver fotos de los diseños? Pídeselas al salón por WhatsApp.</p>`:''}
     ${res}<button style="width:100%;margin-top:12px" ${c?'':'disabled'} onclick="r.paso=2;render()">Elegir día y hora</button>`);return}
   if(r.paso===2){
-    const ds=diasDisp();if(!r.f){r.f=ds.find(f=>libres(f,c.m).length)||ds[0]}
+    const ds=diasDisp();if(!r.f){r.f=ds.find(f=>libres(f,c.m).length)||ds[0];r.mes=(r.f||hoyF()).slice(0,7)}
     const hs=libres(r.f,c.m);if(r.h!==null&&!hs.includes(r.h))r.h=null;
     V(`${pasos}<div class="row between">${atras}<h3>Día y hora</h3><span></span></div>
-    <label>Día</label><div class="chips">${ds.map(f=>{const x=new Date(f+'T12:00'),n=libres(f,c.m).length;return `<button class="chip ${f===r.f?'on':''}" ${n?'':'disabled style="opacity:.45"'} onclick="r.f='${f}';r.h=null;render()">${f===hoyF()?'Hoy':x.toLocaleDateString('es-CL',{weekday:'short'}).replace('.','')} ${x.getDate()}</button>`}).join('')}</div>
+    <label>Elige el día</label>${calendario(c.m)}
+    <label>${r.f?fl(r.f):''}</label>
     <label>Horas libres (tu servicio dura ${dur(c.m)})</label>
     ${hs.length?`<div class="chips">${hs.map(x=>`<button class="chip ${r.h===x?'on':''}" onclick="r.h=${x};render()">${hm(x)}</button>`).join('')}</div>`:'<p class="muted">No quedan horas libres este día. Prueba otro.</p>'}
     <p class="muted" style="margin-top:10px">Solo ves horas libres${+P.ant?', con al menos '+(+P.ant)+' min de anticipación':''}. Tu hora queda confirmada al instante.</p>
