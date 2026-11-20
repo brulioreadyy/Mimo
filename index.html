@@ -572,7 +572,8 @@ function notifHTML(){
 function pedirNotif(){try{Notification.requestPermission().then(()=>render())}catch(e){}}
 function waCobro(){const p=plan(),n=normTel(p.cobro);if(!n)return'';return wa(n,'Hola, quiero pagar mi plan de Mimo ('+clp(p.precio)+'/mes).\nNegocio: '+(st.negocio.nombre||'')+'\nNombre: '+(st.negocio.dueña||'')+'\nID: '+L.id)}
 function bannerPlan(){
-  if(!st.negocio.registrado)return'';const p=plan();
+  const p=plan();
+  if(p.estado==='prueba'&&p.dias>7)return`<div class="card" style="background:var(--soft);cursor:pointer;padding:10px 14px;font-size:13px" onclick="go('ajustes')">✦ Prueba gratis: te quedan <b>${p.dias} días</b>. Después ${clp(p.precio)} al mes.</div>`;
   if(p.estado==='prueba'&&p.dias<=7)return`<div class="card" style="background:var(--soft);cursor:pointer" onclick="go('ajustes')">✦ ${p.dias===0?'Tu prueba gratis termina <b>hoy</b>':'Te quedan <b>'+p.dias+' día'+(p.dias===1?'':'s')+'</b> de prueba gratis'}. Toca para ver cómo seguir.</div>`;
   if(p.estado==='vencido')return`<div class="card" style="background:var(--warnbg);cursor:pointer" onclick="go('ajustes')">Tu plan venció. Tienes <b>${p.quedaGracia} día${p.quedaGracia===1?'':'s'}</b> para pagar antes de que Mimo se pause.</div>`;
   return'';
@@ -711,7 +712,7 @@ function vAjustes(){
   <div class="card"><h3 style="font-size:16px">Avisos de reservas</h3>
    <label>Correo (te avisamos cada reserva y cada mañana tu agenda)</label><input type="email" inputmode="email" placeholder="tucorreo@gmail.com" value="${esc(st.negocio.correo||'')}" onchange="st.negocio.correo=this.value.trim();save();verificar()">
    <div style="margin-top:10px">${notifHTML()}</div></div>
-  <div class="card"><h3 style="font-size:16px">Tu plan</h3>${st.negocio.registrado?planHTML():'<p class="muted">Activa tu cuenta en la pestaña Reservar para empezar tus 30 días gratis.</p>'}</div>
+  <div class="card"><h3 style="font-size:16px">Tu plan</h3>${planHTML()}</div>
   <h3 class="sectiontitle" style="font-size:16px">Herramientas</h3><div class="card herr"><div class="herr-ic">$</div><div class="herr-tx"><b>Contador de Bolsillo</b><small>Ganancias, IVA y lo del SII de tu negocio, en simple.</small></div>${EXTRAS.contador?`<a class="btn sm" href="${EXTRAS.contador}" target="_blank" rel="noopener">Descargar</a>`:`<span class="tag">Muy pronto</span>`}</div>
   <div class="card"><b>Borrar agenda</b><p class="muted">Borra todas las horas y clientas de este celular (tus servicios y diseños se mantienen).</p><button class="ghost" onclick="resetear()">Borrar horas y clientas</button></div>`);
 }
