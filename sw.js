@@ -1,7 +1,7 @@
 // Mimo: guarda la app en el celular para que funcione sin internet.
-const VERSION = 'mimo-v6';
+const VERSION = 'mimo-v7';
 const ARCHIVOS = ['./', './index.html', './reserva.html', './r.html', './manifest.webmanifest',
-  './icon-192.png', './icon-512.png', './icon-maskable.png', './apple-touch-icon.png'];
+  './icon-192.png', './icon-512.png', './icon-maskable.png', './apple-touch-icon.png', './privacidad.html'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));

@@ -206,7 +206,7 @@ try{st=JSON.parse(localStorage.getItem(KEY))}catch(e){}
 if(!st||!st.servicios)st=seed();
 if(!TEMAS[st.negocio.tema])st.negocio.tema='algodon';
 if(!st.negocio.dias)st.negocio.dias=[1,2,3,4,5,6];if(st.negocio.whatsapp==null)st.negocio.whatsapp='';
-function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}if(typeof programarSync==='function')programarSync()}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}if(typeof programarSync==='function')programarSync();if(typeof programarRespaldo==='function')programarRespaldo()}
 const svc=id=>st.servicios.find(s=>s.id===id);
 const cli=id=>st.clientas.find(c=>c.id===id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -583,7 +583,7 @@ function planHTML(){
   return`<div class="row between"><b style="font-size:20px;color:var(--plum)">${clp(p.precio)}<span class="muted" style="font-weight:500"> / mes</span></b><span class="tag ${p.estado==='pagado'?'ok':p.estado==='prueba'?'':'warn'}">${txt}</span></div>
   <p class="muted">${p.estado==='pagado'?'Pagado hasta el '+fechaLarga(p.hasta)+'.':p.estado==='prueba'?'Gratis hasta el '+fechaLarga(p.hasta)+'.':'Venció el '+fechaLarga(p.hasta)+'.'}</p>
   <a class="btn" style="display:block;text-align:center;margin:10px 0" href="https://mpago.la/1dkyEa5" target="_blank" rel="noopener">Pagar ${clp(p.precio)} con Mercado Pago</a>
-  <div class="row" style="flex-wrap:wrap">${w?`<a class="btn sm ghost" href="${w}" target="_blank" rel="noopener">Avisar que pagué</a>`:''}<button class="ghost sm" onclick="verificar(true)">Ya pagué: revisar</button></div>
+  <div class="row" style="flex-wrap:wrap"><button class="sm" onclick="abrirPago()">Ya pagué</button><button class="ghost sm" onclick="verificar(true)">Revisar mi plan</button></div>
   <p class="muted" style="margin-top:8px">Tu ID: ${esc(L.id)}</p>`;
 }
 function vBloqueo(){const p=plan();V(`<div class="welcome"><div class="big">${miLogo()}</div><h2 style="color:var(--plum)">Mimo está en pausa</h2><p class="muted">Tu plan venció el ${fechaLarga(p.hasta)}. Tus horas y clientas están guardadas: paga tu plan para seguir usándola.</p></div><div class="card">${planHTML()}</div>`)}
@@ -637,6 +637,9 @@ function leerFoto(file,cb){const rd=new FileReader();rd.onload=()=>{const im=new
 function borrarDis(id){st.catalogo=st.catalogo.filter(d=>d.id!==id);delete IMG[id];idbPut(id,null);save();closeSheet();render();toast('Diseño quitado')}
 
 // ---------- Clientas + retoques ----------
+let confirmCli='';
+function borrarCli(id){if(confirmCli!==id){confirmCli=id;toast('Toca otra vez para eliminar a la clienta y sus horas');setTimeout(()=>confirmCli='',3000);return}
+  st.clientas=st.clientas.filter(k=>k.id!==id);st.citas=st.citas.filter(c=>c.clientaId!==id);confirmCli='';save();render();toast('Clienta eliminada')}
 function vClientas(){
   const t=ymd(hoy());
   const filas=st.clientas.map(k=>{
@@ -655,7 +658,7 @@ function vClientas(){
     const msg=x.ret?`Hola ${nom}! Ya van a ser ${x.ret.s.retoque} días desde tu ${x.ret.s.nombre.toLowerCase()} en ${st.negocio.nombre}. ¿Te agendo tu retoque? Reserva aquí o respóndeme por acá 💖`:'';
     return `<div class="card"><div class="row between"><b>${esc(x.k.nombre)}</b>${x.futura?`<span class="tag ok">Próxima: ${hm(x.futura.inicio)} ${new Date(x.futura.fecha+'T12:00').toLocaleDateString('es-CL',{day:'numeric',month:'short'})}</span>`:x.ret?(x.diasRet<=3?`<span class="tag warn">${x.diasRet<0?'Retoque atrasado '+(-x.diasRet)+' d':x.diasRet===0?'Retoque hoy':'Retoque en '+x.diasRet+' d'}</span>`:`<span class="tag">Retoque en ${x.diasRet} d</span>`):''}</div>
     <div class="muted">${x.ult?'Último: '+esc(svc(x.ult.servicioId)?.nombre||'')+' · ':''}Total gastado ${clp(x.gasto)}${x.k.tel?' · '+esc(x.k.tel):''}</div>
-    ${x.ret&&!x.futura&&x.k.tel?`<a class="btn sm" style="margin-top:8px" href="${wa(x.k.tel,msg)}" target="_blank" rel="noopener">Avisar retoque por WhatsApp</a>`:''}</div>`}).join('')||'<div class="card empty">Aún no tienes clientas.</div>'}`);
+    ${x.ret&&!x.futura&&x.k.tel?`<a class="btn sm" style="margin-top:8px" href="${wa(x.k.tel,msg)}" target="_blank" rel="noopener">Avisar retoque por WhatsApp</a>`:''}<div style="text-align:right"><button class="ghost sm" style="margin-top:6px" onclick="borrarCli('${x.k.id}')">Eliminar</button></div></div>`}).join('')||'<div class="card empty">Aún no tienes clientas.</div>'}`);
 }
 
 // ---------- Servicios ----------
@@ -695,6 +698,47 @@ let confirmSvc=false;
 function borrarSvc(){if(!confirmSvc){confirmSvc=true;toast('Toca otra vez para eliminar');setTimeout(()=>confirmSvc=false,3000);return}
   st.servicios=st.servicios.filter(x=>x.id!==ed.id);st.catalogo=st.catalogo.filter(d=>d.servicioId!==ed.id);save();closeSheet();render();toast('Servicio eliminado')}
 
+// ---------- Pago con Mercado Pago ----------
+function abrirPago(){document.getElementById('sheetIn').innerHTML=`<div class="row between"><h3>Ya pagué</h3><button class="ghost sm" onclick="closeSheet()">Cerrar</button></div>
+ <p class="muted">Escribe el <b>número de operación</b> de tu pago. Lo encuentras en el comprobante de Mercado Pago (en la app: Actividad → tu pago → "N° de operación").</p>
+ <input id="pgOp" inputmode="numeric" placeholder="Ej: 91234567890">
+ <button style="width:100%;margin-top:12px" onclick="enviarPago()">Activar mi plan</button>
+ <a class="btn ghost" style="display:block;text-align:center;margin-top:8px" href="https://mpago.la/1dkyEa5" target="_blank" rel="noopener">Aún no pago: ir a pagar</a>`;openSheet()}
+async function enviarPago(){const op=(document.getElementById('pgOp').value||'').replace(/\D/g,'');if(op.length<6)return toast('Revisa el número de operación');toast('Revisando tu pago…');
+ try{const j=await postAPI({accion:'pago',id:L.id,op});
+  if(j.ok&&j.estado==='pagado'){L.estado='pagado';L.hasta=j.hasta;saveL();closeSheet();render();toast('¡Pago recibido! Plan activo')}
+  else if(j.ok&&j.pendiente){closeSheet();toast('Recibimos tu aviso. Activamos tu plan apenas lo revisemos.')}
+  else toast({usada:'Ese número de operación ya se usó','no-aprobado':'Ese pago todavía no está aprobado','no-encontrado':'No encontramos ese pago, revisa el número',monto:'El monto no alcanza para el plan',antiguo:'Ese pago es muy antiguo','sin-registro':'Activa tu cuenta primero'}[j.error]||'No se pudo revisar, intenta de nuevo')}
+ catch(e){toast('Sin conexión, intenta de nuevo')}}
+async function postAPI(o){const r0=await fetch(API,{method:'POST',body:JSON.stringify(o)});return r0.json()}
+
+// ---------- Respaldo ----------
+let respT=null;
+function programarRespaldo(){clearTimeout(respT);respT=setTimeout(respaldar,20000)}
+async function respaldar(manual){
+  if(!st.negocio.registrado||!navigator.onLine){if(manual)toast(navigator.onLine?'Activa tu cuenta primero':'Sin internet: se respalda cuando vuelva');return}
+  try{const j=await postAPI({accion:'respaldo',id:L.id,correo:st.negocio.correo||'',datos:JSON.stringify(st)});
+    if(j&&j.ok){L.respaldo=Date.now();saveL();if(manual){toast('Respaldo guardado en la nube');render()}}else if(manual)toast(j&&j.error==='sin-registro'?'Tu cuenta aún se está activando, intenta en un rato':'No se pudo respaldar')}
+  catch(e){if(manual)toast('No se pudo respaldar, revisa tu internet')}}
+async function descargarCopia(){const fotos={};for(const d of st.catalogo){const u=imgDe(d);if(u)fotos[d.id]=u}
+  const txt=JSON.stringify({app:'mimo',v:1,fecha:new Date().toISOString(),id:L.id,st,fotos});
+  const nombre='mimo-respaldo-'+ymd(hoy())+'.json',blob=new Blob([txt],{type:'application/json'});
+  try{const f=new File([blob],nombre,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'Respaldo de Mimo'});return}}catch(e){if(e&&e.name==='AbortError')return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},3000);toast('Copia descargada')}
+function cargarCopia(e){const fl=e.target.files[0];if(!fl)return;const rd=new FileReader();rd.onload=async()=>{try{const j=JSON.parse(rd.result);if(j.app!=='mimo'||!j.st||!j.st.servicios)throw 0;
+  for(const k in (j.fotos||{})){IMG[k]=j.fotos[k];await idbPut(k,j.fotos[k])}aplicarRespaldo(j.st,j.id);toast('¡Datos recuperados!');go('agenda')}catch(x){toast('Ese archivo no es una copia de Mimo')}};rd.readAsText(fl)}
+function aplicarRespaldo(nst,id){st=nst;st.negocio.bienvenida=false;if(id&&id!==L.id)L={id,primera:L.primera};saveL();try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}verificar()}
+let rec={paso:0,correo:''};
+function abrirRecuperar(){rec={paso:0,correo:st.negocio.correo||''};pintarRec();openSheet()}
+function pintarRec(){document.getElementById('sheetIn').innerHTML=`<div class="row between"><h3>Recuperar mis datos</h3><button class="ghost sm" onclick="closeSheet()">Cerrar</button></div>
+ ${rec.paso===0?`<p class="muted">Escribe el correo que tenías en Mimo. Te mandamos un código de 6 números.</p><input id="recC" type="email" inputmode="email" placeholder="tucorreo@gmail.com" value="${esc(rec.correo)}"><button style="width:100%;margin-top:12px" onclick="pedirPin()">Enviar código</button>`
+ :`<p class="muted">Revisa tu correo <b>${esc(rec.correo)}</b> (mira también en spam) y escribe el código.</p><input id="recP" inputmode="numeric" maxlength="6" placeholder="123456"><button style="width:100%;margin-top:12px" onclick="usarPin()">Recuperar</button><button class="ghost" style="width:100%;margin-top:8px" onclick="rec.paso=0;pintarRec()">Cambiar correo</button>`}
+ <p class="muted" style="margin-top:14px">¿Tienes un archivo de copia? <label style="color:var(--plum);text-decoration:underline;display:inline;cursor:pointer;margin:0">Cargarlo aquí<input type="file" accept=".json,application/json" style="display:none" onchange="closeSheet();cargarCopia(event)"></label></p>`}
+async function pedirPin(){const c=(document.getElementById('recC').value||'').trim();if(!c.includes('@'))return toast('Escribe tu correo');rec.correo=c;toast('Enviando código…');
+ try{const j=await postAPI({accion:'pin',correo:c,app:'Mimo'});if(j.ok){rec.paso=1;pintarRec()}else toast(j.error==='sin-respaldo'?'No hay un respaldo con ese correo':'No se pudo enviar el código')}catch(e){toast('Sin conexión')}}
+async function usarPin(){const p=(document.getElementById('recP').value||'').trim();if(p.length!==6)return toast('El código tiene 6 números');
+ try{const j=await postAPI({accion:'recuperar',correo:rec.correo,pin:p,app:'Mimo'});if(j.ok){aplicarRespaldo(JSON.parse(j.datos),j.id);closeSheet();toast('¡Tu agenda volvió!');go('agenda')}else toast(j.error==='pin'?'Código incorrecto':'El código venció, pide otro')}catch(e){toast('No se pudo recuperar')}}
+
 // ---------- Ajustes ----------
 let EXTRAS={};fetch('extras.json?x='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(j=>{EXTRAS=j||{};if(tab==='ajustes')render()}).catch(()=>{});
 function vAjustes(){
@@ -714,8 +758,11 @@ function vAjustes(){
    <label>Correo (te avisamos cada reserva y cada mañana tu agenda)</label><input type="email" inputmode="email" placeholder="tucorreo@gmail.com" value="${esc(st.negocio.correo||'')}" onchange="st.negocio.correo=this.value.trim();save();verificar()">
    <div style="margin-top:10px">${notifHTML()}</div></div>
   <div class="card"><h3 style="font-size:16px">Tu plan</h3>${planHTML()}</div>
+  <div class="card"><h3 style="font-size:16px">Respaldo de tus datos</h3><p class="muted">${!st.negocio.registrado?'Activa tu cuenta para respaldar.':(st.negocio.correo?'Tu agenda, clientas y servicios se guardan solos en la nube. Si cambias de celular, los recuperas con tu correo.':'⚠️ Escribe tu correo arriba: con él recuperas tus datos si cambias de celular.')}</p><p class="muted">${L.respaldo?'Último respaldo: '+new Date(L.respaldo).toLocaleString('es-CL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'Todavía sin respaldo.'}</p>
+   <div class="row" style="flex-wrap:wrap"><button class="sm" onclick="respaldar(true)">Respaldar ahora</button><button class="ghost sm" onclick="descargarCopia()">Descargar copia con fotos</button><button class="ghost sm" onclick="abrirRecuperar()">Recuperar datos</button></div><p class="muted" style="margin-top:8px">Las fotos del catálogo solo van en la copia descargada: guárdala en Drive o envíatela por WhatsApp.</p></div>
   <h3 class="sectiontitle" style="font-size:16px">Herramientas</h3><div class="card herr"><div class="herr-ic">$</div><div class="herr-tx"><b>Contador de Bolsillo</b><small>Ganancias, IVA y lo del SII de tu negocio, en simple.</small></div>${(()=>{const ios=/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)&&!/Android/.test(navigator.userAgent),u=ios?EXTRAS.contadorWeb:EXTRAS.contador;return u?`<a class="btn sm" href="${u}" target="_blank" rel="noopener">${ios?'Abrir':'Descargar'}</a>`:`<span class="tag">Muy pronto</span>`})()}</div>
-  <div class="card"><b>Borrar agenda</b><p class="muted">Borra todas las horas y clientas de este celular (tus servicios y diseños se mantienen).</p><button class="ghost" onclick="resetear()">Borrar horas y clientas</button></div>`);
+  <div class="card"><b>Borrar agenda</b><p class="muted">Borra todas las horas y clientas de este celular (tus servicios y diseños se mantienen).</p><button class="ghost" onclick="resetear()">Borrar horas y clientas</button></div>
+  <p class="muted" style="text-align:center;margin:6px 0 20px"><a href="privacidad.html" target="_blank" rel="noopener" style="color:var(--plum)">Política de privacidad</a> · Mimo ${VERSION_APP}</p>`);
 }
 function selTemas(){return `<div class="themes">${Object.entries(TEMAS).map(([k,t])=>`<button class="th ${st.negocio.tema===k?'on':''}" onclick="st.negocio.tema='${k}';save();render()"><div class="pv" style="background:radial-gradient(90% 80% at 0 0,${t.v.b1},transparent 70%),radial-gradient(90% 80% at 100% 100%,${t.v.b2},transparent 70%),${t.v.bg}"><div style="display:flex;gap:6px;align-items:center"><span style="width:22px;height:22px;border-radius:7px;overflow:hidden;display:block">${logoSVG(...t.lg)}</span><i style="flex:1;background:${t.v.ink};opacity:.8;height:8px"></i></div><i style="background:${t.v.card};border:1px solid ${t.v.line};height:22px"></i><i style="background:linear-gradient(90deg,${t.v.plum},${t.v.acc});width:60%;height:14px;border-radius:9px"></i></div><div class="nm">${t.n}</div></button>`).join('')}</div>`}
 function subirLogo(e){const fl=e.target.files[0];if(!fl)return;leerFoto(fl,u=>{st.negocio.logo=u;save();render();toast('Logo actualizado')})}
@@ -728,7 +775,9 @@ function vBienvenida(){
   <label>¿Qué haces? (marca todo lo que haces, pueden ser los 3)</label><div class="chips">${Object.keys(RUBROS).map(rb=>`<button class="chip ${st.negocio.rubros.includes(rb)?'on':''}" onclick="togRubro('${rb}')">${st.negocio.rubros.includes(rb)?'✓ ':'+ '}${RUBROS[rb].n}</button>`).join('')}</div>
   <p class="muted" style="margin-top:10px">Empiezas con <b style="color:var(--plum)">30 días gratis</b>.</p></div>
   <div class="card"><b>Elige tu estilo</b><p class="muted" style="margin-top:4px">Lo puedes cambiar cuando quieras en Ajustes.</p>${selTemas()}</div>
-  <button style="width:100%;margin-bottom:20px" onclick="empezar()">Empezar</button>`);
+  <button style="width:100%;margin-bottom:10px" onclick="empezar()">Empezar</button>
+  <button class="ghost" style="width:100%;margin-bottom:10px" onclick="abrirRecuperar()">¿Ya usabas Mimo? Recuperar mis datos</button>
+  <p class="muted" style="text-align:center;margin-bottom:20px">Al empezar aceptas la <a href="privacidad.html" target="_blank" rel="noopener" style="color:var(--plum)">política de privacidad</a>.</p>`);
 }
 function togDia(d){const a=st.negocio.dias;st.negocio.dias=a.includes(d)?a.filter(x=>x!==d):[...a,d];save();render()}
 function togRubro(rb){const a=st.negocio.rubros;if(a.includes(rb)){if(a.length===1)return toast('Deja al menos un rubro');st.negocio.rubros=a.filter(x=>x!==rb)}else a.push(rb);save();render()}
@@ -742,6 +791,7 @@ window.androidBack=function(){const sh=document.getElementById('sheet');if(sh.cl
 render();
 revisarHash();
 verificar();
+setTimeout(()=>{if(!L.respaldo||Date.now()-L.respaldo>864e5)respaldar()},8000);
 cargarFotos().then(()=>{if(tab==='catalogo'||tab==='agenda')render()});
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){try{navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}}
 </script>
